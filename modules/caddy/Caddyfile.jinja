@@ -1,0 +1,14 @@
+{
+  {%- if self_signed %}
+  # use self-signed instead of ACME in debug environment
+  local_certs
+  {% endif %}
+  http_port 10080
+  https_port 10443
+}
+{% for domain, usr in services.items() %}
+{{ domain }} {
+  header Strict-Transport-Security max-age=31536000;
+  reverse_proxy unix//run/channels/{{ usr }}/socket
+}
+{% endfor %}

@@ -1,0 +1,10 @@
+# adapt to small virtual machine disks in debug deployments
+[storage]
+root_size = 10240
+
+# set password to "core" only for debugging
+[user]
+password_hash = "$2b$05$nPKtkcW9dSCEh6XhSOeWleD.3YZqehYsE/yaq3eA3S/xCTbb.8oli"
+
+[network]
+domain = "debug.example.com"

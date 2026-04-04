@@ -1,0 +1,54 @@
+(from_global: str)
+
+---
+ICMP4 = [
+  "destination-unreachable", "echo-request", "parameter-problem", "time-exceeded",
+]
+ICMP6 = [
+  "destination-unreachable", "echo-request", "nd-neighbor-advert", "nd-neighbor-solicit",
+  "nd-router-advert", "nd-router-solicit", "packet-too-big", "parameter-problem", "time-exceeded",
+]
+
+# retrieve ports from GLOBAL state
+ports = lib.glob.get(from_global, {})
+---
+
+# enable and configure nftables firewall
+{% run lib.nftables %}
+  inet.filter.input:
+    policy: drop
+    rules: 
+      # allow loopback
+      - ["iif lo", "accept"]
+      - ["iif != lo", "ip daddr 127.0.0.1/8", "drop"]
+      - ["iif != lo", "ip6 daddr ::1/128", "drop"]
+
+      # allow established connections
+      - ["ct state invalid", "drop"]
+      - ["ct state { established, related }", "accept"]
+
+      # allow important ICMP messages
+      - [`"icmp type { %s }" % (ICMP4 | join(", "))`, "accept"]
+      - [`"icmpv6 type { %s }" % (ICMP6 | join(", "))`, "accept"]
+
+      # allow DHCP
+      - ["udp sport 67", "udp dport 68", "accept"]
+      - ["udp sport 547", "udp dport 546", "accept"]
+
+      # allow redirected ports
+      {%- for src, dst in ports.items() if dst != False %}
+      - ["meta l4proto tcp", `"ct original proto-dst " ~ src`, "accept"]
+      {%- endfor %}
+
+  # set up port redirections for incoming packets
+  inet.nat.prerouting.rules:
+    {%- for src, dst in ports.items() if dst is not boolean %}
+    - [`"tcp dport " ~ src`, `"redirect to :" ~ dst`]
+    {%- endfor %}
+
+  # set up port redirections for loopback packets
+  inet.nat.output.rules:
+    {%- for src, dst in ports.items() if dst is not boolean %}
+    - ["fib daddr type local", `"tcp dport " ~ src`, `"redirect to :" ~ dst`]
+    {%- endfor %}
+{% endrun %}

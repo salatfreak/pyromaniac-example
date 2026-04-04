@@ -1,0 +1,31 @@
+# accept service domain and admin name to set up
+(domain: str, admin: str)
+
+---
+# define name of unprivileged user to create and run services as
+USER = "gitea"
+
+# store domain to user mapping in GLOBAL variable to be processed by caddy module
+lib.glob.add('proxy.services', {domain: USER}, merge=True)
+
+# store port redirection in GLOBAL variable to be processed by firewall module
+lib.glob.add("firewall.ports.22", 10022)
+
+# prepare bashrc drop-in
+bashrc = {'print-admin-credentials': _/"print-admin-credentials.sh"}
+---
+
+# add custom entrypoint script
+storage.files[0]: `std.file("custom-entrypoint.sh", _/"custom-entrypoint.sh", user=USER)`
+
+# compile a list of modules into Ignition and add them to be merged
+ignition.config.merge: {% run std.merge %}
+  # generate random initial gitea admin credentials on first boot
+  - {% run lib.secrets %}
+    gitea-admin-name: { value: `admin`, users: [`USER`] }
+    gitea-admin-pass: { format: 'passwd', length: 29, users: [`USER`] }
+  {% endrun %}
+
+  # create user with quadlet services using the modules.service component
+  - `_._.service(USER, _.quadlets(USER, domain), persist=True, bashrc=bashrc)`
+{% endrun %}

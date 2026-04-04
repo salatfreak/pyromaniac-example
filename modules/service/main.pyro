@@ -1,0 +1,45 @@
+"""Create unprivileged user running Quadlet services."""
+
+(
+  name: str,                             # name of user account to create
+  quadlets: dict[str, Any],              # quadlets specification as expected by lib.quadlets
+  bashrc: dict[str, str|Path|URL] = {},  # extra bashrc drop-ins as expected by lib.user
+  persist: bool = False,                 # whether to bind mount containers data to persistent storage
+)
+
+---
+# import pyromaniac function for composite key expansion
+from pyromaniac import expand
+
+# persistent data directory
+persist_dir = Path("/mnt", "persist", name)
+
+# add aliases `sc='systemctl --user'` and `jc='journalctl --user'`
+bashrc = {"systemd-user-aliases": _/"systemd-user-aliases.sh", **bashrc}
+
+# assemble modules to be merged
+storage = []
+merge = [
+  lib.user(name, bashrc=bashrc, linger=True),
+  lib.quadlets(name, **expand(quadlets)),
+]
+
+# add persistence if requested
+if persist:
+  # create persistent data directory owned and only accessible by user
+  storage.append(std.directory(persist_dir, user=name, mode=0o700))
+
+  # create bind mount for containers directory
+  merge.append(lib.bind(
+    Path("/var", persist_dir.relative_to("/"), "containers"), ".local/share/containers",
+    user=name, create_what=True, create_where=True,
+  ))
+---
+
+# add merge of modules prepared in python section
+ignition.config.merge: `std.merge(*merge)`
+
+# add storage objects if any generated in python section
+{% if storage %}
+storage: `std.storage(*storage)`
+{% endif %}

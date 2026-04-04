@@ -1,0 +1,17 @@
+(**values)
+
+---
+
+from pyromaniac.compiler.code.jinja import filter_shell as shell
+
+def normalize(key: str, value: Any) -> list[tuple[str, Any]]:
+  return [
+    (f"{key}__{k}", v)
+    for subk, subv in value.items()
+    for k, v in normalize(subk, subv)
+  ] if isinstance(value, dict) else [(key.upper(), value)]
+
+def to_str(val: str | float | int | bool) -> str:
+  return str(val).lower() if isinstance(val, bool) else shell(val)
+
+[f"{k}={to_str(v)}" for k, v in normalize('GITEA', values)]

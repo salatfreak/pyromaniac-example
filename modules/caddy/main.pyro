@@ -1,0 +1,32 @@
+(from_global: str, self_signed: bool=False)
+
+---
+# define name of unprivileged user to create and run services as
+USER = "caddy"
+
+# retrieve services from GLOBAL state
+services = lib.glob.get(from_global, {})
+
+# store port redirections in GLOBAL variable to be processed by firewall module
+lib.glob.add("firewall.ports.80", 10080)
+lib.glob.add("firewall.ports.443", 10443)
+
+# generate Caddyfile content
+caddy_cont = std.load(_/"Caddyfile.jinja", services=services, self_signed=self_signed)
+---
+
+storage.files:
+  # add Caddy configuration file
+  - `std.file("Caddyfile", caddy_cont, user=USER)`
+
+  # add socket directories shared with service users
+  - {% run lib.conf.tmpfiles 'channels' %}
+    {% for usr in services.values() %}
+    - { type: "d", path: `"%t/channels/" ~ usr`, mode: 02750, user: `usr`, group: `USER` }
+    {% endfor %}
+  {% endrun %}
+
+# create user with quadlet services using the modules.service component
+ignition.config.merge: `std.merge(
+  _._.service(USER, _.quadlets(services.values() | list), persist=True)
+)`

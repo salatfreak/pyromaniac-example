@@ -1,0 +1,30 @@
+(domain: str, admin: str)
+
+---
+# define name of unprivileged user to create and run services as
+USER = "nextcloud"
+
+# store domain to user mapping in GLOBAL variable to be processed by caddy module
+lib.glob.add('proxy.services', {domain: USER}, merge=True)
+
+# prepare bashrc drop-in
+bashrc = {'print-admin-credentials': _/"print-admin-credentials.sh"}
+---
+
+# add nginx and nextcloud configuration files
+storage.files:
+  - `std.file("nginx-default.conf", _/"nginx-default.conf", user=USER)`
+  - `std.file("nginx-security-headers.conf", _/"nginx-security-headers.conf", user=USER)`
+  - `std.file("zz-listen-socket.conf", _/"zz-listen-socket.conf", user=USER)`
+
+# compile a list of modules into Ignition and add them to be merged
+ignition.config.merge: {% run std.merge %}
+  # generate random initial nextcloud admin credentials on first boot
+  - {% run lib.secrets %}
+    nextcloud-admin-name: { value: `admin`, users: [`USER`] }
+    nextcloud-admin-pass: { format: 'passwd', length: 29, users: [`USER`] }
+  {% endrun %}
+
+  # create user with quadlet services using the modules.service component
+  - `_._.service(USER, _.quadlets(USER, domain, admin), persist=True, bashrc=bashrc)`
+{% endrun %}

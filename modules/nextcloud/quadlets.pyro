@@ -1,0 +1,57 @@
+(name: str, domain: str, admin: str)
+
+containers:
+  nginx:
+    enabled: true
+    image: docker.io/nginxinc/nginx-unprivileged:stable-alpine
+    user_n_s: keep-id:uid=101,gid=101
+    volume:
+      # nginx configuration
+      - "%h/nginx-default.conf:/etc/nginx/conf.d/default.conf:ro,Z"
+      - "%h/nginx-security-headers.conf:/etc/nginx/includes/security-headers.conf:ro,Z"
+
+      # reverse proxy socket directory
+      - `"/run/channels/%s:/run/channels/proxy:z" % name`
+
+      # FPM socket directory
+      - "%t/channels/fpm:/run/channels/fpm"
+
+      # nextcloud static files
+      - nextcloud:/var/www/html
+
+    # start after nextcloud service created channel directory and started container
+    unit.after: nextcloud.container
+
+    # always restart container when it exits
+    service.restart: always
+
+  nextcloud:
+    enabled: true
+    image: docker.io/nextcloud:stable-fpm-alpine
+    user_n_s: keep-id:uid=33,gid=33
+    environment:
+      - `"NEXTCLOUD_TRUSTED_DOMAINS=" ~ domain`
+      - TRUSTED_PROXIES=127.0.0.1
+      - SQLITE_DATABASE=nextcloud
+      - NEXTCLOUD_ADMIN_USER_FILE=/run/secrets/nextcloud-admin-name
+      - NEXTCLOUD_ADMIN_PASSWORD_FILE=/run/secrets/nextcloud-admin-pass
+    secret:
+      - nextcloud-admin-name
+      - nextcloud-admin-pass
+    volume:
+      # FPM config for listening on socket
+      - "%h/zz-listen-socket.conf:/usr/local/etc/php-fpm.d/zz-listen-socket.conf:ro,Z"
+
+      # FPM socket directory
+      - "%t/channels/fpm:/run/channels/fpm:z"
+
+      # data and config volumes
+      - nextcloud:/var/www/html
+      - config:/var/www/html/config
+      - data:/var/www/html/data
+
+    # create channel directory before container is created
+    service.exec_start_pre: mkdir -p %t/channels/fpm
+
+    # always restart container when it exits
+    service.restart: always

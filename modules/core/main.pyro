@@ -1,0 +1,14 @@
+# accept optional password hash parameter
+(password_hash: str = None)
+
+---
+
+# add bashrc drop-in from local file for easy user switching
+fields = {'bashrc': {'switch': _/"switch.sh"}}
+
+# add password hash field only if not None
+if password_hash is not None:
+  fields.update(password_hash=password_hash)
+
+# directly return result of lib.user component
+lib.user("core", **fields)

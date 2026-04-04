@@ -1,0 +1,5 @@
+*.ign
+*.iso
+
+/config/*.toml
+/virtual-machine

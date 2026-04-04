@@ -1,0 +1,21 @@
+(channels: list[str])
+
+containers.caddy:
+  enabled: true
+  image: docker.io/caddy:alpine
+  network: host
+  host_name: "%H"
+  volume:
+    # caddy configuration
+    - "%h/Caddyfile:/etc/caddy/Caddyfile:ro,Z"
+
+    # channel directories for all services
+    {%- for chn in channels %}
+    - `"/run/channels/{chn}:/run/channels/{chn}".format(chn=chn)`
+    {%- endfor %}
+
+    # data volume
+    - data:/data
+
+  # always restart container when it exits
+  service.restart: always

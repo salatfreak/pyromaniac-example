@@ -1,0 +1,23 @@
+# accept port to expose SSHD on and public keys to install
+(port: int, pubkeys: dict[str, str | list[str]])
+
+# completely define component in python section because no hierarchical structure is defined
+---
+
+# store port to open in GLOBAL variable to be processed by firewall module
+lib.glob.add(f"firewall.ports.{port}", True)
+
+# compile several modules to ignition and combine them using the ignition.config.merge field
+std.merge(
+  # add SELinux rule to allow SSHD listening on custom port
+  lib.selinux('ssh-port', [f"(portcon tcp {port} (system_u object_r ssh_port_t ((s0) (s0))))"]),
+
+  # add SSHD config fragment changing port to listen on
+  lib.conf.sshd('20-port', port=port),
+
+  # configure SSHD keys to be stored on persistent partition
+  lib.persist_sshd_keys("/var/mnt/persist/ssh"),
+
+  # install authorized keys only editable by root
+  lib.authorized_keys(**pubkeys),
+)

@@ -1,0 +1,62 @@
+"""Example server running Nextcloud and Gitea behind a Caddy reverse proxy"""
+
+(
+  debug: bool = False,  # enable debug build by passing "-- --debug" to pyromaniac
+)
+
+---
+# derive configuration profiles to load
+profiles = ["main"] + (["debug"] if debug else [])
+
+# load and merge configs for all profiles and wrap them in std.magic for convenient traversal
+cfg = std.magic(std.py.merge(*(std.load.toml(config/f"{p}.toml") for p in profiles)))
+---
+
+# configure and run modules from ./modules and ./lib using the lib.module component
+ignition.config.merge: {% run lib.modules _.modules %}
+  # concisely specify disk layout using the lib.storage component
+  lib.storage:
+    # resize root partition to value specified in config file
+    root:
+      size: `cfg.storage.root_size`
+      resize: true
+      wipe: true
+
+    # fill rest of boot disk with a persistent partition automatically mounted at /var/mnt/persist
+    persist: {}
+
+  # harden security using modules.security without any parameters
+  security: []
+
+  # configure SSHD with custom port, key persistence, and public keys only editable by root
+  sshd:
+    port: `cfg.ssh.port`
+    pubkeys: `cfg.ssh.pubkeys`
+
+  # add mechanism for quick reprovisioning without reinstallation
+  lib.quick_reprovision: []
+
+  # configure "core" user
+  core:
+    # pass password hash or default value of None if not configured for current profile(s)
+    password_hash: `cfg.user.password_hash or None`
+
+  # add Gitea quadlets to run as separate unprivileged user
+  gitea:
+    domain: `"%s.%s" % (cfg.gitea.subdomain, cfg.network.domain)`
+    admin: `cfg.gitea.admin`
+
+  # add Nextcloud quadlets to run as separate unprivileged user
+  nextcloud:
+    domain: `"%s.%s" % (cfg.nextcloud.subdomain, cfg.network.domain)`
+    admin: `cfg.nextcloud.admin`
+
+  # add Caddy reverse proxy to run as separate unprivileged user
+  caddy:
+    from_global: proxy.services
+    self_signed: `debug`
+
+  # configure firewall including opening and redirection of ports
+  firewall:
+    from_global: firewall.ports
+{% endrun %}
