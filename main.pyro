@@ -12,7 +12,7 @@ profiles = ["main"] + (["debug"] if debug else [])
 cfg = std.magic(std.py.merge(*(std.load.toml(config/f"{p}.toml") for p in profiles)))
 ---
 
-# configure and run modules from ./modules and ./lib using the lib.module component
+# configure and run modules from ./modules and ./lib using the lib.modules component
 ignition.config.merge: {% run lib.modules _.modules %}
   # concisely specify disk layout using the lib.storage component
   lib.storage:
@@ -41,7 +41,7 @@ ignition.config.merge: {% run lib.modules _.modules %}
     # pass password hash or default value of None if not configured for current profile(s)
     password_hash: `cfg.user.password_hash or None`
 
-  # add Gitea quadlets to run as separate unprivileged user
+  # add Gitea quadlet to run as separate unprivileged user
   gitea:
     domain: `"%s.%s" % (cfg.gitea.subdomain, cfg.network.domain)`
     admin: `cfg.gitea.admin`
@@ -51,7 +51,7 @@ ignition.config.merge: {% run lib.modules _.modules %}
     domain: `"%s.%s" % (cfg.nextcloud.subdomain, cfg.network.domain)`
     admin: `cfg.nextcloud.admin`
 
-  # add Caddy reverse proxy to run as separate unprivileged user
+  # add Caddy reverse proxy quadlet to run as separate unprivileged user
   caddy:
     from_global: proxy.services
     self_signed: `debug`
