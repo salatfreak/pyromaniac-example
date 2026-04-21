@@ -15,6 +15,9 @@ ports = lib.glob.get(from_global, {})
 
 # enable and configure nftables firewall
 {% run lib.nftables %}
+  # define allowed ICMP types
+  define: { icmp4: `ICMP4`, icmp6: `ICMP6` }
+
   inet.filter.input:
     policy: drop
     rules: 
@@ -28,8 +31,8 @@ ports = lib.glob.get(from_global, {})
       - ["ct state { established, related }", "accept"]
 
       # allow important ICMP messages
-      - [`"icmp type { %s }" % (ICMP4 | join(", "))`, "accept"]
-      - [`"icmpv6 type { %s }" % (ICMP6 | join(", "))`, "accept"]
+      - ["icmp type $icmp4", "accept"]
+      - ["icmpv6 type $icmp6", "accept"]
 
       # allow DHCP
       - ["udp sport 67", "udp dport 68", "accept"]
