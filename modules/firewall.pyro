@@ -38,7 +38,7 @@ ports = lib.glob.get(from_global, {})
       - ["udp sport 67", "udp dport 68", "accept"]
       - ["udp sport 547", "udp dport 546", "accept"]
 
-      # allow redirected ports
+      # allow opened and redirected ports
       {%- for src, dst in ports.items() if dst != False %}
       - ["meta l4proto tcp", `"ct original proto-dst " ~ src`, "accept"]
       {%- endfor %}
